@@ -1,0 +1,15 @@
+{
+  "envType": "prod",
+  "services": {
+    "ui": {
+      "chartVersion": "0.1.0",
+      "imageTag": "0.1.0",
+      "imageRepo": "ctera-insight/ui-service"
+    },
+    "billing": {
+      "chartVersion": "0.1.0",
+      "imageTag": "0.1.0",
+      "imageRepo": "ctera-insight/billing-service"
+    }
+  }
+}

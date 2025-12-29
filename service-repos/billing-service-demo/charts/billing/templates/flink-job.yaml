@@ -1,0 +1,40 @@
+{{- if and .Values.services.billing.enabled .Values.services.billing.pipeline.flink.enabled }}
+# Note: This is a simplified Flink job representation
+# In production, you would use the Flink Kubernetes Operator
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "billing.fullname" . }}-flink-job
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+    component: flink-pipeline
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "billing.selectorLabels" . | nindent 8 }}
+        component: flink-pipeline
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: flink-job-submitter
+          image: {{ .Values.services.billing.pipeline.flink.image.repository }}:{{ .Values.services.billing.pipeline.flink.image.tag }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Flink pipeline configuration:"
+              echo "  Parallelism: {{ .Values.services.billing.pipeline.flink.parallelism }}"
+              echo "  Checkpoint Interval: {{ .Values.services.billing.pipeline.flink.checkpointInterval }}ms"
+              echo "Pipeline would run here in production..."
+              # In production: flink run -p {{ .Values.services.billing.pipeline.flink.parallelism }} /opt/billing-pipeline.jar
+          resources:
+            requests:
+              cpu: {{ .Values.services.billing.pipeline.flink.resources.taskManager.cpu }}
+              memory: {{ .Values.services.billing.pipeline.flink.resources.taskManager.memory }}
+            limits:
+              cpu: {{ .Values.services.billing.pipeline.flink.resources.taskManager.cpu }}
+              memory: {{ .Values.services.billing.pipeline.flink.resources.taskManager.memory }}
+{{- end }}

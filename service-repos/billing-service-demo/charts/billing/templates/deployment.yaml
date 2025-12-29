@@ -1,0 +1,46 @@
+{{- if .Values.services.billing.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "billing.fullname" . }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.global.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "billing.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "billing.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ include "billing.image" . }}
+          imagePullPolicy: {{ .Values.services.billing.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: FLINK_ENABLED
+              value: {{ .Values.services.billing.pipeline.flink.enabled | quote }}
+            {{- if .Values.services.billing.pipeline.flink.enabled }}
+            - name: FLINK_PARALLELISM
+              value: {{ .Values.services.billing.pipeline.flink.parallelism | quote }}
+            - name: FLINK_CHECKPOINT_INTERVAL
+              value: {{ .Values.services.billing.pipeline.flink.checkpointInterval | quote }}
+            {{- end }}
+          {{- with .Values.services.billing.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.services.billing.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.services.billing.resources | nindent 12 }}
+{{- end }}

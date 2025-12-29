@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: staging
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Staging environments - production-like restrictions
+  sourceRepos:
+    - 'https://github.com/ctera-insight/*'
+  destinations:
+    - namespace: 'ns-*-staging'
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  orphanedResources:
+    warn: true
+  syncWindows:
+    - kind: allow
+      schedule: '0 6-22 * * 1-5'
+      duration: 16h
+      applications:
+        - '*'

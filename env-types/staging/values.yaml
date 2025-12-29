@@ -1,0 +1,46 @@
+# Layer 2: Staging environment defaults
+global:
+  replicas: 2
+  debug: false
+  logLevel: warn
+
+services:
+  ui:
+    enabled: true
+    image:
+      repository: ghcr.io/ctera-insight/ui-service
+      tag: "0.1.0"
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+    ingress:
+      enabled: true
+      className: nginx
+      domain: staging.local
+    microservice:
+      enabled: true
+      env:
+        LOG_LEVEL: warn
+        DEBUG_MODE: "false"
+
+  billing:
+    enabled: true
+    image:
+      repository: ghcr.io/ctera-insight/billing-service
+      tag: "0.1.0"
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+    pipeline:
+      flink:
+        enabled: true
+        parallelism: 4
+        checkpointInterval: 30000

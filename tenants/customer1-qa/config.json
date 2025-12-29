@@ -1,0 +1,17 @@
+{
+  "tenant": "customer1-qa",
+  "envType": "qa",
+  "namespace": "ns-customer1-qa",
+  "services": {
+    "ui": {
+      "chartVersion": "0.1.0",
+      "imageTag": "0.1.0",
+      "enabled": true
+    },
+    "billing": {
+      "chartVersion": "0.1.0",
+      "imageTag": "0.1.0",
+      "enabled": true
+    }
+  }
+}

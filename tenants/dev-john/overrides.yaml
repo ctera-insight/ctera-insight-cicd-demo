@@ -1,0 +1,11 @@
+# Layer 3: Tenant-specific overrides for dev-john
+# Only include values that differ from env-type defaults
+global:
+  namespace: ns-dev-john
+
+services:
+  ui:
+    microservice:
+      env:
+        DEBUG_LEVEL: high
+        DEVELOPER: john

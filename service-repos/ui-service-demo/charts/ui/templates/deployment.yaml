@@ -1,0 +1,44 @@
+{{- if .Values.services.ui.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ui.fullname" . }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "ui.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.global.replicas | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "ui.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ui.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ include "ui.image" . }}
+          imagePullPolicy: {{ .Values.services.ui.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          {{- if .Values.services.ui.microservice.enabled }}
+          env:
+            {{- range $key, $value := .Values.services.ui.microservice.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.services.ui.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.services.ui.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.services.ui.resources | nindent 12 }}
+{{- end }}

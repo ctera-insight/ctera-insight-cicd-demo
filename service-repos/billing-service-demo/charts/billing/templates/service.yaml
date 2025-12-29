@@ -1,0 +1,18 @@
+{{- if .Values.services.billing.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "billing.fullname" . }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "billing.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.services.billing.service.type }}
+  ports:
+    - port: {{ .Values.services.billing.service.port }}
+      targetPort: {{ .Values.services.billing.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "billing.selectorLabels" . | nindent 4 }}
+{{- end }}

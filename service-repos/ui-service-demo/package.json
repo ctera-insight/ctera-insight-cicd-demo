@@ -1,0 +1,15 @@
+{
+  "name": "ui-service",
+  "version": "0.1.0",
+  "description": "UI Service for multi-tenant GitOps demo",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "LOG_LEVEL=debug DEBUG_MODE=true node src/index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Platform Team",
+  "license": "MIT"
+}

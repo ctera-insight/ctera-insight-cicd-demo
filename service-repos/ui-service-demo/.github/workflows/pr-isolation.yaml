@@ -1,0 +1,126 @@
+name: PR Isolation Test
+
+on:
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      pr-tag: ${{ steps.meta.outputs.pr-tag }}
+      chart-version: ${{ steps.meta.outputs.chart-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate tags
+        id: meta
+        run: |
+          PR_TAG="pr-${{ github.event.pull_request.number }}-${{ github.actor }}"
+          CHART_VERSION="0.0.0-pr${{ github.event.pull_request.number }}"
+          echo "pr-tag=$PR_TAG" >> $GITHUB_OUTPUT
+          echo "chart-version=$CHART_VERSION" >> $GITHUB_OUTPUT
+          echo "PR Tag: $PR_TAG"
+          echo "Chart Version: $CHART_VERSION"
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.pr-tag }}
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+
+      - name: Package Helm chart
+        run: |
+          helm package charts/ui \
+            --version ${{ steps.meta.outputs.chart-version }} \
+            --app-version ${{ steps.meta.outputs.pr-tag }}
+
+  update-tenant-config:
+    runs-on: ubuntu-latest
+    needs: build-and-tag
+    steps:
+      - name: Checkout config repo
+        uses: actions/checkout@v4
+        with:
+          repository: ctera-insight/ctera-insight-cicd-demo
+          token: ${{ secrets.BOT_TOKEN }}
+          path: config-repo
+
+      - name: Update developer tenant
+        run: |
+          cd config-repo
+          TENANT="dev-${{ github.actor }}"
+
+          # Create developer tenant if it doesn't exist
+          if [[ ! -d "tenants/$TENANT" ]]; then
+            echo "Creating new developer tenant: $TENANT"
+            ./scripts/onboard-tenant.sh "${{ github.actor }}" dev
+          fi
+
+          # Update tenant config with PR versions
+          jq --arg chart "${{ needs.build-and-tag.outputs.chart-version }}" \
+             --arg image "${{ needs.build-and-tag.outputs.pr-tag }}" \
+             '.services.ui.chartVersion = $chart | .services.ui.imageTag = $image' \
+             "tenants/$TENANT/config.json" > tmp.json && mv tmp.json "tenants/$TENANT/config.json"
+
+          # Update values.yaml with new image tag
+          if command -v yq &> /dev/null; then
+            yq eval ".services.ui.image.tag = \"${{ needs.build-and-tag.outputs.pr-tag }}\"" -i "tenants/$TENANT/values.yaml"
+          fi
+
+      - name: Commit and push
+        run: |
+          cd config-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tenants/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update dev-${{ github.actor }} with PR #${{ github.event.pull_request.number }}
+
+            UI Version: ${{ needs.build-and-tag.outputs.pr-tag }}
+            PR: ${{ github.event.pull_request.html_url }}"
+            git push
+          fi
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## PR Isolation Environment Ready
+
+              Your changes have been deployed to your isolated developer environment.
+
+              | Property | Value |
+              |----------|-------|
+              | Tenant | \`dev-${{ github.actor }}\` |
+              | Namespace | \`ns-dev-${{ github.actor }}\` |
+              | Image Tag | \`${{ needs.build-and-tag.outputs.pr-tag }}\` |
+              | Chart Version | \`${{ needs.build-and-tag.outputs.chart-version }}\` |
+
+              ArgoCD will automatically sync your changes.`
+            })

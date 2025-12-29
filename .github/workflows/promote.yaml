@@ -1,0 +1,114 @@
+name: Promote Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      fromEnv:
+        description: 'Source environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - staging
+      toEnv:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - qa
+          - staging
+          - prod
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate promotion path
+        run: |
+          FROM="${{ inputs.fromEnv }}"
+          TO="${{ inputs.toEnv }}"
+
+          case "$FROM-$TO" in
+            dev-qa|qa-staging|staging-prod)
+              echo "Valid promotion path: $FROM -> $TO"
+              ;;
+            *)
+              echo "Error: Invalid promotion path: $FROM -> $TO"
+              echo "Valid paths: dev->qa, qa->staging, staging->prod"
+              exit 1
+              ;;
+          esac
+
+  show-changes:
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      ui-version: ${{ steps.versions.outputs.ui-version }}
+      billing-version: ${{ steps.versions.outputs.billing-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show versions to promote
+        id: versions
+        run: |
+          FROM_CONFIG="env-types/${{ inputs.fromEnv }}/config.json"
+          TO_CONFIG="env-types/${{ inputs.toEnv }}/config.json"
+
+          echo "=== Current versions in ${{ inputs.toEnv }} ==="
+          cat "$TO_CONFIG" | jq '.services'
+
+          echo ""
+          echo "=== Versions from ${{ inputs.fromEnv }} to be promoted ==="
+          cat "$FROM_CONFIG" | jq '.services'
+
+          # Output for summary
+          UI_VER=$(jq -r '.services.ui.chartVersion' "$FROM_CONFIG")
+          BILLING_VER=$(jq -r '.services.billing.chartVersion' "$FROM_CONFIG")
+          echo "ui-version=$UI_VER" >> $GITHUB_OUTPUT
+          echo "billing-version=$BILLING_VER" >> $GITHUB_OUTPUT
+
+  promote:
+    runs-on: ubuntu-latest
+    needs: [validate, show-changes]
+    environment: ${{ inputs.toEnv }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+
+      - name: Setup tools
+        run: |
+          # Install yq
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Promote versions
+        run: |
+          ./scripts/promote.sh "${{ inputs.fromEnv }}" "${{ inputs.toEnv }}"
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Promote ${{ inputs.fromEnv }} to ${{ inputs.toEnv }}
+
+          UI: ${{ needs.show-changes.outputs.ui-version }}
+          Billing: ${{ needs.show-changes.outputs.billing-version }}
+
+          Triggered by: ${{ github.actor }}"
+          git push
+
+      - name: Summary
+        run: |
+          echo "## Promotion Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | Version |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| UI | ${{ needs.show-changes.outputs.ui-version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Billing | ${{ needs.show-changes.outputs.billing-version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Path:** ${{ inputs.fromEnv }} → ${{ inputs.toEnv }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ArgoCD will automatically sync affected tenants." >> $GITHUB_STEP_SUMMARY

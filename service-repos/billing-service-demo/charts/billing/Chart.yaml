@@ -1,0 +1,9 @@
+apiVersion: v2
+name: billing
+description: Billing Service Helm chart for multi-tenant GitOps demo
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+maintainers:
+  - name: Platform Team
+    email: platform@ctera-insight.com

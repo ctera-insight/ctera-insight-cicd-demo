@@ -1,0 +1,8 @@
+# Layer 3: Tenant-specific overrides for customer1-qa
+global:
+  namespace: ns-customer1-qa
+
+services:
+  ui:
+    ingress:
+      domain: customer1.qa.local

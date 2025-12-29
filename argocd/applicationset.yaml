@@ -1,0 +1,102 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: tenants
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/ctera-insight/ctera-insight-cicd-demo.git
+        revision: HEAD
+        files:
+          - path: "tenants/*/config.json"
+  template:
+    metadata:
+      name: '{{.tenant}}'
+      labels:
+        tenant: '{{.tenant}}'
+        env-type: '{{.envType}}'
+        app.kubernetes.io/part-of: gitops-demo
+    spec:
+      project: '{{.envType}}'
+      sources:
+        # ============================================
+        # UI Service - deployed to all environments
+        # ============================================
+        - repoURL: https://github.com/ctera-insight/ui-service-demo.git
+          targetRevision: 'v{{index .services.ui "chartVersion"}}'
+          path: charts/ui
+          helm:
+            releaseName: '{{.tenant}}-ui'
+            valueFiles:
+              - $values/tenants/{{.tenant}}/values.yaml
+            parameters:
+              - name: global.namespace
+                value: '{{.namespace}}'
+              - name: services.ui.image.tag
+                value: '{{index .services.ui "imageTag"}}'
+
+        # ============================================
+        # Billing Service - deployed to all environments
+        # ============================================
+        - repoURL: https://github.com/ctera-insight/billing-service-demo.git
+          targetRevision: 'v{{index .services.billing "chartVersion"}}'
+          path: charts/billing
+          helm:
+            releaseName: '{{.tenant}}-billing'
+            valueFiles:
+              - $values/tenants/{{.tenant}}/values.yaml
+            parameters:
+              - name: global.namespace
+                value: '{{.namespace}}'
+              - name: services.billing.image.tag
+                value: '{{index .services.billing "imageTag"}}'
+
+        # ============================================
+        # Values source (this config repo)
+        # ============================================
+        - repoURL: https://github.com/ctera-insight/ctera-insight-cicd-demo.git
+          targetRevision: HEAD
+          ref: values
+
+        # ============================================
+        # ADDING A NEW SERVICE (example: Analytics)
+        # ============================================
+        # Step 1: Add with env conditional (dev only first)
+        #
+        # {{- if eq .envType "dev" }}
+        # - repoURL: https://github.com/ctera-insight/analytics-service.git
+        #   targetRevision: 'v{{index .services.analytics "chartVersion"}}'
+        #   path: charts/analytics
+        #   helm:
+        #     releaseName: '{{.tenant}}-analytics'
+        #     valueFiles:
+        #       - $values/tenants/{{.tenant}}/values.yaml
+        #     parameters:
+        #       - name: global.namespace
+        #         value: '{{.namespace}}'
+        # {{- end }}
+        #
+        # Step 2: Also add analytics config to env-types/dev/config.json
+        # Step 3: Promote: change to {{- if or (eq .envType "dev") (eq .envType "qa") }}
+        # Step 4: When stable in all envs, remove conditional
+        # ============================================
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{.namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - PruneLast=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m

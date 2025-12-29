@@ -1,0 +1,8 @@
+# Layer 3: Tenant-specific overrides for customer1-staging
+global:
+  namespace: ns-customer1-staging
+
+services:
+  ui:
+    ingress:
+      domain: customer1.staging.local

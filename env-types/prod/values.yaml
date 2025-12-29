@@ -1,0 +1,46 @@
+# Layer 2: Production environment defaults
+global:
+  replicas: 3
+  debug: false
+  logLevel: error
+
+services:
+  ui:
+    enabled: true
+    image:
+      repository: ghcr.io/ctera-insight/ui-service
+      tag: "0.1.0"
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "1Gi"
+      limits:
+        cpu: "4000m"
+        memory: "4Gi"
+    ingress:
+      enabled: true
+      className: nginx
+      domain: prod.example.com
+    microservice:
+      enabled: true
+      env:
+        LOG_LEVEL: error
+        DEBUG_MODE: "false"
+
+  billing:
+    enabled: true
+    image:
+      repository: ghcr.io/ctera-insight/billing-service
+      tag: "0.1.0"
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "1Gi"
+      limits:
+        cpu: "4000m"
+        memory: "4Gi"
+    pipeline:
+      flink:
+        enabled: true
+        parallelism: 8
+        checkpointInterval: 10000

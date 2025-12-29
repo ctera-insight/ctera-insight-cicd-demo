@@ -1,0 +1,13 @@
+# Layer 1: Platform-wide defaults
+# These values apply to all environments and tenants
+global:
+  clusterName: cluster-01
+  security:
+    enabled: true
+    networkPolicy: denyAll
+  quotas:
+    cpu: "10"
+    memory: "20Gi"
+  labels:
+    managed-by: argocd
+    platform: ctera-insight

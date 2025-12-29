@@ -1,0 +1,108 @@
+name: Cascade Environment Type Changes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'env-types/**/config.json'
+      - 'env-types/**/values.yaml'
+      - 'bases/values.yaml'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      env-types: ${{ steps.detect.outputs.env-types }}
+      base-changed: ${{ steps.detect.outputs.base-changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed environments
+        id: detect
+        run: |
+          # Get changed files
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          # Check if base changed
+          if echo "$CHANGED" | grep -q "^bases/"; then
+            echo "base-changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "base-changed=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Extract changed env-types
+          ENV_TYPES=$(echo "$CHANGED" | grep "^env-types/" | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n")[:-1]')
+          echo "env-types=$ENV_TYPES" >> $GITHUB_OUTPUT
+          echo "Detected env-types: $ENV_TYPES"
+
+  cascade-all:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.base-changed == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+
+      - name: Setup tools
+        run: |
+          # Install yq
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Cascade to all tenants
+        run: |
+          for env in dev qa staging prod; do
+            echo "Cascading to $env tenants..."
+            ./scripts/cascade-env-type.sh "$env" || true
+          done
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tenants/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Cascade base changes to all tenants"
+            git push
+          fi
+
+  cascade-env:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.base-changed == 'false' && needs.detect-changes.outputs.env-types != '[]'
+    strategy:
+      matrix:
+        env-type: ${{ fromJson(needs.detect-changes.outputs.env-types) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BOT_TOKEN }}
+
+      - name: Setup tools
+        run: |
+          # Install yq
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Cascade to ${{ matrix.env-type }} tenants
+        run: |
+          ./scripts/cascade-env-type.sh "${{ matrix.env-type }}"
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tenants/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Cascade ${{ matrix.env-type }} changes to tenants"
+            git push
+          fi

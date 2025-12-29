@@ -1,0 +1,57 @@
+# Default values for Billing service
+# These are overridden by tenant values in the config repo
+
+global:
+  namespace: default
+  replicas: 1
+
+services:
+  billing:
+    enabled: true
+    image:
+      repository: ghcr.io/ctera-insight/billing-service
+      tag: "0.1.0"
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8080
+
+    pipeline:
+      flink:
+        enabled: false
+        parallelism: 1
+        checkpointInterval: 60000
+        image:
+          repository: flink
+          tag: "1.17"
+        resources:
+          jobManager:
+            cpu: "500m"
+            memory: "1Gi"
+          taskManager:
+            cpu: "1000m"
+            memory: "2Gi"
+
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 10
+
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 5

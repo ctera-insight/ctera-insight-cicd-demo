@@ -1,0 +1,17 @@
+{
+  "tenant": "customer1-dev",
+  "envType": "dev",
+  "namespace": "ns-customer1-dev",
+  "services": {
+    "ui": {
+      "chartVersion": "0.1.0",
+      "imageTag": "0.1.0",
+      "enabled": true
+    },
+    "billing": {
+      "chartVersion": "0.1.0",
+      "imageTag": "0.1.0",
+      "enabled": true
+    }
+  }
+}

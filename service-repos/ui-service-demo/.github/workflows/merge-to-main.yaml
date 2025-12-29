@@ -1,0 +1,115 @@
+name: Merge to Main - Cascade to Dev
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          # Get version from package.json or use commit-based versioning
+          VERSION=$(jq -r '.version' package.json)
+          # Append short SHA for uniqueness
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          FULL_VERSION="${VERSION}-${SHORT_SHA}"
+          echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $FULL_VERSION"
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v3
+
+      - name: Package Helm chart
+        run: |
+          helm package charts/ui \
+            --version ${{ steps.version.outputs.version }} \
+            --app-version ${{ steps.version.outputs.version }}
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+  cascade-to-dev:
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - name: Checkout config repo
+        uses: actions/checkout@v4
+        with:
+          repository: ctera-insight/ctera-insight-cicd-demo
+          token: ${{ secrets.BOT_TOKEN }}
+          path: config-repo
+
+      - name: Update dev environment
+        run: |
+          cd config-repo
+
+          # Update env-types/dev/config.json
+          jq --arg chart "${{ needs.release.outputs.version }}" \
+             --arg image "${{ needs.release.outputs.version }}" \
+             '.services.ui.chartVersion = $chart | .services.ui.imageTag = $image' \
+             env-types/dev/config.json > tmp.json && mv tmp.json env-types/dev/config.json
+
+          echo "Updated env-types/dev/config.json:"
+          cat env-types/dev/config.json
+
+      - name: Commit and push
+        run: |
+          cd config-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add env-types/dev/config.json
+          git commit -m "Update UI to v${{ needs.release.outputs.version }} in dev
+
+          Triggered by: ${{ github.event.head_commit.message }}
+          Commit: ${{ github.sha }}"
+          git push
+
+      - name: Summary
+        run: |
+          echo "## UI Service Released" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | ${{ needs.release.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | dev |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The cascade workflow in the config repo will automatically update all dev tenants." >> $GITHUB_STEP_SUMMARY

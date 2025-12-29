@@ -1,0 +1,46 @@
+# Layer 2: QA environment defaults
+global:
+  replicas: 2
+  debug: false
+  logLevel: info
+
+services:
+  ui:
+    enabled: true
+    image:
+      repository: ghcr.io/ctera-insight/ui-service
+      tag: "0.1.0"
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+    ingress:
+      enabled: true
+      className: nginx
+      domain: qa.local
+    microservice:
+      enabled: true
+      env:
+        LOG_LEVEL: info
+        DEBUG_MODE: "false"
+
+  billing:
+    enabled: true
+    image:
+      repository: ghcr.io/ctera-insight/billing-service
+      tag: "0.1.0"
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+    pipeline:
+      flink:
+        enabled: true
+        parallelism: 2
+        checkpointInterval: 60000

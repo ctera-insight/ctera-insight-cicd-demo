@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Development environments - least restrictive
+  sourceRepos:
+    - 'https://github.com/ctera-insight/*'
+  destinations:
+    # Developer personal namespaces: ns-dev-*
+    - namespace: 'ns-dev-*'
+      server: https://kubernetes.default.svc
+    # Customer dev namespaces: ns-*-dev
+    - namespace: 'ns-*-dev'
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  orphanedResources:
+    warn: true

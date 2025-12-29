@@ -1,0 +1,54 @@
+# Default values for UI service
+# These are overridden by tenant values in the config repo
+
+global:
+  namespace: default
+  replicas: 1
+
+services:
+  ui:
+    enabled: true
+    image:
+      repository: ghcr.io/ctera-insight/ui-service
+      tag: "0.1.0"
+      pullPolicy: IfNotPresent
+
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8080
+
+    ingress:
+      enabled: true
+      className: nginx
+      domain: localhost
+      annotations: {}
+      tls: []
+
+    microservice:
+      enabled: true
+      env:
+        LOG_LEVEL: info
+        DEBUG_MODE: "false"
+
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 10
+      periodSeconds: 10
+
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 5

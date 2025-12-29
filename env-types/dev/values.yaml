@@ -1,0 +1,46 @@
+# Layer 2: Development environment defaults
+global:
+  replicas: 1
+  debug: true
+  logLevel: debug
+
+services:
+  ui:
+    enabled: true
+    image:
+      repository: ghcr.io/ctera-insight/ui-service
+      tag: "0.1.0"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    ingress:
+      enabled: true
+      className: nginx
+      domain: dev.local
+    microservice:
+      enabled: true
+      env:
+        LOG_LEVEL: debug
+        DEBUG_MODE: "true"
+
+  billing:
+    enabled: true
+    image:
+      repository: ghcr.io/ctera-insight/billing-service
+      tag: "0.1.0"
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    pipeline:
+      flink:
+        enabled: false
+        parallelism: 1
+        checkpointInterval: 60000
