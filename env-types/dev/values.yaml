@@ -8,8 +8,8 @@ services:
   ui:
     enabled: true
     image:
-      repository: ghcr.io/ctera-insight/ui-service
-      tag: "0.1.0"
+      repository: nginx
+      tag: "alpine"
     resources:
       requests:
         cpu: "100m"
@@ -30,8 +30,8 @@ services:
   billing:
     enabled: true
     image:
-      repository: ghcr.io/ctera-insight/billing-service
-      tag: "0.1.0"
+      repository: nginx
+      tag: "alpine"
     resources:
       requests:
         cpu: "100m"
